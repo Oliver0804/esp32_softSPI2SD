@@ -1,16 +1,9 @@
 /*********
-  Rui Santos
-  Complete project details at https://RandomNerdTutorials.com/esp32-cam-take-photo-save-microsd-card
-  
-  IMPORTANT!!! 
-   - Select Board "AI Thinker ESP32-CAM"
-   - GPIO 0 must be connected to GND to upload a sketch
-   - After connecting GPIO 0 to GND, press the ESP32-CAM on-board RESET button to put your board in flashing mode
-  
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files.
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
+项目使用S014进行ov5640保存影像到SD卡中
+1.使用SdFat库
+2.采用SoftSPI进行传输
+3.需要进入SdFat库中修改SdFat/SdFatConfig.h，将SPI_DRIVER_SELECT改为2
+by Oliver0804
 *********/
 
 #include "esp_camera.h"
@@ -29,7 +22,7 @@
 // Chip select may be constant or RAM variable.
 const uint8_t SD_CS_PIN = 19;
 //
-// Pin numbers in templates must be constants.
+// S014 SD 卡配置
 const uint8_t SOFT_MISO_PIN = 13;
 const uint8_t SOFT_MOSI_PIN = 21;
 const uint8_t SOFT_SCK_PIN = 4;
@@ -49,10 +42,9 @@ File file;
 camera_fb_t * fb = NULL;
 
 
-
 #define EEPROM_SIZE 1
 
-// Pin definition for CAMERA_MODEL_AI_THINKER
+// Pin definition for S014
 #define PWDN_GPIO_NUM    -1
 #define RESET_GPIO_NUM   5
 #define XCLK_GPIO_NUM    15
