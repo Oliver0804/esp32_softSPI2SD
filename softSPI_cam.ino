@@ -15,11 +15,7 @@
 
 #include "esp_camera.h"
 #include "Arduino.h"
-//#include "FS.h"                // SD Card ESP32
-//#include "SD_MMC.h"            // SD Card ESP32
-#include "soc/soc.h"           // Disable brownour problems
-#include "soc/rtc_cntl_reg.h"  // Disable brownour problems
-#include "driver/rtc_io.h"
+
 #include <EEPROM.h>            // read and write from flash memory
 
 //SD
@@ -50,7 +46,7 @@ SoftSpiDriver<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
 
 SdFat sd;
 File file;
-
+camera_fb_t * fb = NULL;
 
 
 
@@ -76,9 +72,46 @@ File file;
 #define PCLK_GPIO_NUM    26
 
 int pictureNumber = 0;
+void initSoftSD(){
+  if (!sd.begin(SD_CONFIG)) {
+    sd.initErrorHalt();
+  }
+  }
+void writeTxt2sd(){
+    
+  if (!file.open("SoftSPI.txt", O_RDWR | O_CREAT)) {
+    sd.errorHalt(F("open failed"));
+  }
+  file.println(F("This line was printed using software SPI."));
 
+  file.rewind();
+
+  while (file.available()) {
+    Serial.write(file.read());
+  }
+
+  file.close();
+
+  Serial.println(F("Done."));
+  }
+void saveImage2sd(){
+    // 在這裡用SdFat庫來保存文件
+  pictureNumber = EEPROM.read(0) + 1;
+  String path = "/picture" + String(pictureNumber) + ".jpg";
+  file = sd.open(path.c_str(), FILE_WRITE);
+
+  if (!file) {
+    Serial.println("Failed to open file in writing mode");
+  } else {
+    file.write(fb->buf, fb->len);
+    Serial.printf("Saved file to path: %s\n", path.c_str());
+    EEPROM.write(0, pictureNumber);
+    EEPROM.commit();
+  }
+  
+  file.close();
+  }
 void setup() {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
  
   Serial.begin(115200);
   //Serial.setDebugOutput(true);
@@ -103,11 +136,11 @@ void setup() {
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
+  config.xclk_freq_hz = 8000000;
   config.pixel_format = PIXFORMAT_JPEG; 
   
   if(psramFound()){
-    config.frame_size = FRAMESIZE_UXGA; // FRAMESIZE_ + QVGA|CIF|VGA|SVGA|XGA|SXGA|UXGA
+    config.frame_size = FRAMESIZE_SXGA; // FRAMESIZE_ + QVGA|CIF|VGA|SVGA|XGA|SXGA|UXGA
     config.jpeg_quality = 10;
     config.fb_count = 2;
   } else {
@@ -122,31 +155,19 @@ void setup() {
     Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
+  // Init SD
+  initSoftSD();
+
+  // write txt to sd 
+  writeTxt2sd();
+
   
-
-  if (!sd.begin(SD_CONFIG)) {
-    sd.initErrorHalt();
-  }
-
-  if (!file.open("SoftSPI.txt", O_RDWR | O_CREAT)) {
-    sd.errorHalt(F("open failed"));
-  }
-  file.println(F("This line was printed using software SPI."));
-
-  file.rewind();
-
-  while (file.available()) {
-    Serial.write(file.read());
-  }
-
-  file.close();
-
-  Serial.println(F("Done."));
-    
-  camera_fb_t * fb = NULL;
   
   // Take Picture with Camera
   fb = esp_camera_fb_get();  
+  delay(100);
+  fb = esp_camera_fb_get();  
+
   if(!fb) {
     Serial.println("Camera capture failed");
     return;
@@ -154,37 +175,28 @@ void setup() {
   // initialize EEPROM with predefined size
   EEPROM.begin(EEPROM_SIZE);
 
-// 在這裡用SdFat庫來保存文件
-  pictureNumber = EEPROM.read(0) + 1;
-  String path = "/picture" + String(pictureNumber) + ".jpg";
-  file = sd.open(path.c_str(), FILE_WRITE);
-
-  if (!file) {
-    Serial.println("Failed to open file in writing mode");
-  } else {
-    file.write(fb->buf, fb->len);
-    Serial.printf("Saved file to path: %s\n", path.c_str());
-    EEPROM.write(0, pictureNumber);
-    EEPROM.commit();
-  }
   
-  file.close();
+  //save esp32cam image to sd
+  saveImage2sd();
+
+  //釋放fb
   esp_camera_fb_return(fb); 
   
-  // Turns off the ESP32-CAM white on-board LED (flash) connected to GPIO 4
-  pinMode(4, OUTPUT);
-  digitalWrite(4, LOW);
-  rtc_gpio_hold_en(GPIO_NUM_4);
-  
-  delay(2000);
-  Serial.println("Going to sleep now");
-  delay(2000);
-  esp_deep_sleep_start();
-  Serial.println("This will never be printed");
+  delay(100);
+  Serial.println("demo end.");
+
 }
 
 void loop() {
+
+  fb = esp_camera_fb_get();  
+  //save esp32cam image to sd
+  saveImage2sd();
+
+  //釋放fb
+  esp_camera_fb_return(fb); 
   
+  delay(5000);
 }
 
 #else  // SPI_DRIVER_SELECT
